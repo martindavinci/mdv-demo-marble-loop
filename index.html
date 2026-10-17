@@ -337,7 +337,7 @@ ML.course = {"T":4.5,"D":[0,-2.125158,0],"R":0.035,"Z":0.2,"items":[{"kind":"bar
       ML.look.wall = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshStandardMaterial({ color: 0xcfcfcc, roughness: 0.95 }));
       ML.look.wall.receiveShadow = true; scene.add(ML.look.wall);
       scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d4cc, 1.4));
-      sun = new THREE.DirectionalLight(0xfff6ea, 3.2); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+      sun = new THREE.DirectionalLight(0xfff6ea, 3.2); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
       Object.assign(sun.shadow.camera, { left: -1.4, right: 1.4, top: 1.4, bottom: -1.4, near: 0.1, far: 10 }); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.01; sun.shadow.radius = 2;
       scene.add(sun, sun.target);
       // the course, and near the seam its copy a period on or back: the keys' bodies one instanced mesh (each its colour),
@@ -360,11 +360,17 @@ ML.course = {"T":4.5,"D":[0,-2.125158,0],"R":0.035,"Z":0.2,"items":[{"kind":"bar
       bodies.forEach(({ it, d }, k) => { keys.setMatrixAt(k, keyMatrix(it, d)); keys.setColorAt(k, colorOf(it.note.midi)); });
       keys.castShadow = keys.receiveShadow = true; keys.frustumCulled = false; scene.add(keys);
       for (const m of merge(parts)) { m.frustumCulled = false; scene.add(m); }
-      // the marble: clear glass round red ribbons
-      ball = put(new THREE.Mesh(new THREE.SphereGeometry(R, 48, 32), new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.03, transmission: 1, thickness: R * 1.2, ior: 1.5, clearcoat: 1, envMapIntensity: 2.2 })), scene);
+      // the marble: clear glass round red ribbons. (Not three's transmission: that draws the whole scene again every frame,
+      // for what shows through a ball 7 cm across. Instead: the ribbons, a faintly milky shell over them, and a shell that
+      // only adds its reflections and highlights, black otherwise, blended additively.)
+      ball = put(new THREE.Mesh(new THREE.SphereGeometry(R, 40, 28), new THREE.MeshStandardMaterial({ color: 0xf2e6e6, roughness: 0.3, transparent: true, opacity: 0.32, depthWrite: false })), scene);
+      ball.renderOrder = 2;
+      const gloss = new THREE.Mesh(ball.geometry, new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 0.05, clearcoat: 1, clearcoatRoughness: 0.02, specularIntensity: 1, envMapIntensity: 1.1,
+        transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+      gloss.renderOrder = 3; gloss.scale.setScalar(1.002); ball.add(gloss);
       for (let k = 0; k < 3; k++) {
-        const r = new THREE.Mesh(new THREE.TorusKnotGeometry(R * 0.4, R * 0.07, 100, 8, 2 + k, 3), new THREE.MeshPhysicalMaterial({ color: 0xd8101f, roughness: 0.25, clearcoat: 1 }));
-        r.rotation.set(k, k * 2, 0); r.scale.set(1, 0.6, 1); ball.add(r);
+        const r = new THREE.Mesh(new THREE.TorusKnotGeometry(R * 0.5, R * 0.16, 90, 10, 2 + k, 3), new THREE.MeshPhysicalMaterial({ color: 0xd8101f, roughness: 0.25, clearcoat: 1 }));
+        r.rotation.set(k, k * 2, 0); r.scale.set(1, 0.75, 1); r.renderOrder = 1; ball.add(r);
       }
       ML.look.marble = ball;
     },
