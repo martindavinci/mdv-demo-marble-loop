@@ -148,7 +148,11 @@ ML.course = {"T":45.16,"D":[-1.985003,-24.439716,0],"R":0.035,"Z":0.2,"items":[{
 (() => {
   const stage = document.getElementById('stage');
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));   // (the owner's phone: 49 fps at ×2, 61 at ×1.5, the same to the eye)
+  // pixels to a CSS pixel: a dense screen (a phone) ×1.5 (the owner's phone: 49 fps at ×2, 61 at ×1.5, the same to the
+  // eye); a plain one (a PC) ×2, drawn larger and shrunk, so the rods and wires, thinner than a pixel there, do not
+  // flicker as the camera moves (the owner's 144 Hz PC at ×1); the frame loop steps down if a device cannot keep up
+  const dpr = window.devicePixelRatio || 1;
+  renderer.setPixelRatio(dpr >= 1.75 ? 1.5 : 2);
   stage.appendChild(renderer.domElement);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(38, 1, 1, 800);
@@ -250,12 +254,20 @@ ML.course = {"T":45.16,"D":[-1.985003,-24.439716,0],"R":0.035,"Z":0.2,"items":[{
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
   const copies = [];   // per item: [{ mesh, base }]
   let scene, sun, ball;
+  // the sun: from the right, low across the wall. Its shadow map covers SHADOW m either way of what the camera looks at
+  // and moves only by whole texels of it: moved freely, every frame rasterises the shadows on a slightly different grid
+  // and their edges shimmer (the owner's 144 Hz screen showed it)
+  const SUN = new THREE.Vector3(3, 0.7, 0.75), SHADOW = 2, SHADOW_MAP = 1024, TEXEL = 2 * SHADOW / SHADOW_MAP;
+  const sunDir = SUN.clone().normalize(), lf = sunDir.clone().negate(), lr = new THREE.Vector3().crossVectors(lf, new THREE.Vector3(0, 1, 0)).normalize(), lu = new THREE.Vector3().crossVectors(lr, lf);
+  const snap = (v) => Math.round(v / TEXEL) * TEXEL;
 
   const PALETTE = ['#e8455a', '#f07a3a', '#f6b73c', '#f2e14a', '#a5d84a', '#3fc67a', '#38c2c9', '#3b8cf0', '#5b5bea', '#8b55e0', '#c45bd8', '#ea5ba8'];
   const colorOf = (midi) => new THREE.Color(PALETTE[((midi % 12) + 12) % 12]);
+  // (rods and wires are thinner than a few pixels: a mirror-bright metal on them flashes on and off from frame to frame
+  // as its highlight jumps between their facets; a duller, darker steel does not)
   const M = {
-    steel: new THREE.MeshStandardMaterial({ color: 0x9aa0a6, metalness: 1, roughness: 0.3 }),
-    wire: new THREE.MeshStandardMaterial({ color: 0x6d7278, metalness: 1, roughness: 0.35 }),
+    steel: new THREE.MeshStandardMaterial({ color: 0x7d8288, metalness: 0.6, roughness: 0.55 }),
+    wire: new THREE.MeshStandardMaterial({ color: 0x55595e, metalness: 0.5, roughness: 0.6 }),
     screw: new THREE.MeshStandardMaterial({ color: 0xdfe2e6, metalness: 1, roughness: 0.2 }),
   };
   const put = (m, parent) => { m.castShadow = m.receiveShadow = true; parent.add(m); return m; };
@@ -278,7 +290,7 @@ ML.course = {"T":45.16,"D":[-1.985003,-24.439716,0],"R":0.035,"Z":0.2,"items":[{
     for (const u of [-0.28, 0.28]) { const s = put(new THREE.Mesh(cyl(0.0045, 0.004, 12), M.screw), body); s.position.set(0, H / 2 + 0.001, u * L); }
     body.updateMatrixWorld();
     const under = V(0, -H / 2, -L / 2 + 0.025).applyMatrix4(body.matrixWorld), anchor = V(under.x - 0.02, under.y - 0.05, 0.004);
-    rodBetween(g, under, anchor, 0.003); knob(g, anchor);
+    rodBetween(g, under, anchor, 0.0038); knob(g, anchor);
     return g;
   }
   // a half-moon rail: two wires under the marble's way round it, ties across, posts back to the wall
@@ -286,12 +298,12 @@ ML.course = {"T":45.16,"D":[-1.985003,-24.439716,0],"R":0.035,"Z":0.2,"items":[{
     const g = new THREE.Group(), rw = it.r + Math.sqrt(R * R - 0.02 * 0.02), a0 = it.a - 0.18, a1 = it.b + 0.12;
     const pt = (phi, dz) => V(it.c[0] + d[0] + rw * it.s * Math.sin(phi), it.c[1] + d[1] - rw * Math.cos(phi), Z + dz);
     const N = 40, line = (dz) => new THREE.CatmullRomCurve3(Array.from({ length: N + 1 }, (_, k) => pt(a0 + (a1 - a0) * k / N, dz)));
-    for (const dz of [-0.02, 0.02]) put(new THREE.Mesh(new THREE.TubeGeometry(line(dz), N * 2, 0.0024, 6), M.wire), g);
+    for (const dz of [-0.02, 0.02]) put(new THREE.Mesh(new THREE.TubeGeometry(line(dz), N * 2, 0.0034, 8), M.wire), g);
     const ties = Math.max(3, Math.round((a1 - a0) * rw / 0.05));
     for (let k = 0; k <= ties; k++) {
       const phi = a0 + (a1 - a0) * k / ties, a = pt(phi, -0.02), b = pt(phi, 0.02);
-      rodBetween(g, a, b, 0.0016, M.wire);
-      if (k % 2 === 0) { const w = V(a.x - 0.015, a.y + 0.06, 0.004); rodBetween(g, a, w, 0.002, M.wire); knob(g, w); }
+      rodBetween(g, a, b, 0.0024, M.wire);
+      if (k % 2 === 0) { const w = V(a.x - 0.015, a.y + 0.06, 0.004); rodBetween(g, a, w, 0.003, M.wire); knob(g, w); }
     }
     return g;
   }
@@ -349,8 +361,8 @@ ML.course = {"T":45.16,"D":[-1.985003,-24.439716,0],"R":0.035,"Z":0.2,"items":[{
       ML.look.wall = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshStandardMaterial({ color: 0xcfcfcc, roughness: 0.95 }));
       ML.look.wall.receiveShadow = true; scene.add(ML.look.wall);
       scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d4cc, 1.4));
-      sun = new THREE.DirectionalLight(0xfff6ea, 3.2); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
-      Object.assign(sun.shadow.camera, { left: -1.4, right: 1.4, top: 1.4, bottom: -1.4, near: 0.1, far: 10 }); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.01; sun.shadow.radius = 2;
+      sun = new THREE.DirectionalLight(0xfff6ea, 3.2); sun.castShadow = true; sun.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
+      Object.assign(sun.shadow.camera, { left: -SHADOW, right: SHADOW, top: SHADOW, bottom: -SHADOW, near: 0.1, far: 10 }); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.01; sun.shadow.radius = 2;
       scene.add(sun, sun.target);
       // the course, and near the seam its copy a period on or back, in bands CHUNK tall: in each, the keys' bodies one
       // instanced mesh (each its colour), everything else merged by material
@@ -393,7 +405,9 @@ ML.course = {"T":45.16,"D":[-1.985003,-24.439716,0],"R":0.035,"Z":0.2,"items":[{
       const cam = ML.cameraAt(course, u);
       camera.position.set(...cam.pos); camera.lookAt(...cam.look);
       ML.look.wall.position.set(cam.look[0], cam.look[1], 0);
-      sun.target.position.set(cam.look[0], cam.look[1], 0); sun.position.set(cam.look[0] + 3, cam.look[1] + 0.7, 0.75); sun.target.updateMatrixWorld();
+      const at = new THREE.Vector3(cam.look[0], cam.look[1], 0), a = snap(at.dot(lr)), b = snap(at.dot(lu)), c = at.dot(lf);
+      sun.target.position.copy(lr).multiplyScalar(a).addScaledVector(lu, b).addScaledVector(lf, c);
+      sun.position.copy(sun.target.position).add(SUN); sun.target.updateMatrixWorld();
       // a struck key gives under the marble and springs back, trembling, and lights up in its own colour: a flash, then it
       // stays lit for the rest of the loop (from its note's time: the same at any frame, scrubbed or played; the next
       // loop's copies still dark, the last loop's lit)
@@ -515,7 +529,7 @@ ML.course = {"T":45.16,"D":[-1.985003,-24.439716,0],"R":0.035,"Z":0.2,"items":[{
   const fps = document.createElement('div');
   fps.style.cssText = 'position:fixed;left:8px;top:max(8px,env(safe-area-inset-top));z-index:9;font:600 12px/1.3 ui-monospace,Menlo,Consolas,monospace;color:#222;background:rgba(255,255,255,.75);padding:3px 7px;border-radius:6px;pointer-events:none';
   document.body.appendChild(fps);
-  // (a phone that keeps under 55 fps for 2 s draws at fewer pixels, a step at a time: 1.5, 1 to a CSS pixel; not in
+  // (a device that keeps under 55 fps for 2 s draws at fewer pixels, half a step at a time down to 1 to a CSS pixel; not in
   // the first 2 s, while the shaders are still being readied)
   const started = performance.now();
   let fpsAt = performance.now(), fpsN = 0, prev = fpsAt, worst = 0, slow = 0;
