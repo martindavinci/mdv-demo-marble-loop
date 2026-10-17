@@ -122,21 +122,22 @@ ML.course = {"T":45.16,"D":[-1.985003,-24.439716,0],"R":0.035,"Z":0.2,"items":[{
   if (window.ResizeObserver) new ResizeObserver(resize).observe(stage); else addEventListener('resize', resize);
 
   const perf = () => performance.now() / 1000;
-  let base = perf(), ctx = null, offset = null;   // loop time: perf() - base, or (once the sound runs) heard time - offset
+  let base = perf(), ctx = null, offset = null, was = 0;   // loop time: perf() - base, or (once the sound runs) heard time - offset
   // the audio time being heard now: the context's clock less what the device adds. (Not getOutputTimestamp: on
   // Chrome its performanceTime jumps by tens of ms from one call to the next, sometimes ahead of now.)
   const heard = () => ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0);
   // the audio clock takes over the moment it runs, at the time the picture shows (no jump); when it stops (iOS
   // suspends it in the background, a call interrupts it) the picture runs on, and the sound picks up from there.
-  // The picture keeps performance.now()'s pace, drawn toward the audio clock by at most 0.5 ms a call: that clock moves
-  // a buffer at a time, and followed directly it shook the motion on a 144 Hz screen; a jump of over 0.2 s (the sound
-  // held up) is taken at once
+  // The picture keeps performance.now()'s pace, drawn toward the audio clock (a third of the gap a second, the pace
+  // changed by 5% at most): that clock moves a buffer at a time, and followed directly it shook the motion on a 144 Hz
+  // screen and, going back, played notes again; a jump of over 0.2 s (the sound held up) is taken at once
   ML.now = () => {
     if (ctx && ctx.state === 'running' && ctx.currentTime > 0) {
       const h = heard(), p = perf();
-      if (offset === null) offset = h - (p - base);
-      const err = (h - offset) - (p - base);
-      base -= Math.abs(err) > 0.2 ? err : Math.max(-0.0005, Math.min(0.0005, err * 0.05));
+      if (offset === null) { offset = h - (p - base); was = p; }
+      const err = (h - offset) - (p - base), dt = Math.min(0.1, p - was);
+      was = p;
+      base -= Math.abs(err) > 0.2 ? err : Math.max(-0.05 * dt, Math.min(0.05 * dt, err * 3 * dt));
       return p - base;
     }
     offset = null;
@@ -178,10 +179,12 @@ ML.course = {"T":45.16,"D":[-1.985003,-24.439716,0],"R":0.035,"Z":0.2,"items":[{
     ready: true,
     async init() {},
     onStrike(f) { listeners.push(f); },
-    // the strikes up to LEAD ahead of time t (a jump back, or far ahead, starts over from t: nothing late)
+    // the strikes up to LEAD ahead of time t (a jump back of over 0.5 s, or far ahead, starts over from t: nothing
+    // late; a small step back waits for time to pass what was struck, so no note is played twice)
     advance(t) {
       const end = t + LEAD;
-      if (last === null || end < last || end - last > 0.5) last = t;
+      if (last === null || end < last - 0.5 || end - last > 0.5) last = t;
+      if (end <= last) return;
       for (let L = Math.floor(last / T); L * T <= end; L++) {
         for (const s of course.strikes) { const a = L * T + s.t; if (a > last && a <= end) for (const f of listeners) f({ at: a, item: s.item, speed: 2 }); }
         for (const sg of segs) if (sg.kind === 'rail') { const a = L * T + sg.t; if (a > last && a <= end) for (const f of listeners) f({ at: a, item: sg.item, speed: 0.6 }); }
@@ -419,6 +422,20 @@ ML.course = {"T":45.16,"D":[-1.985003,-24.439716,0],"R":0.035,"Z":0.2,"items":[{
     rail(d, at, m, v) { click(d, at, 4200, 0.06 * v, 0.008); },
   };
 
+  // the context's sound graph: the noise the clicks use, a small room, a compressor, the bus the notes go to
+  function mix() {
+    noise = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
+    const d = noise.getChannelData(0); let s = 1;
+    for (let i = 0; i < d.length; i++) { s = (s * 16807) % 2147483647; d[i] = s / 1073741823.5 - 1; }
+    // a small room: a decaying noise impulse, mixed in a little
+    const ir = ctx.createBuffer(2, ctx.sampleRate * 1.8, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) { const x = ir.getChannelData(c); for (let i = 0; i < x.length; i++) { s = (s * 16807) % 2147483647; x[i] = (s / 1073741823.5 - 1) * Math.exp(-i / ctx.sampleRate / 0.42); } }
+    const comp = ctx.createDynamicsCompressor(), gain = ctx.createGain(), rev = ctx.createConvolver(), wet = ctx.createGain(), bus = ctx.createGain();
+    rev.buffer = ir; wet.gain.value = 0.22; gain.gain.value = 0.85;
+    bus.connect(comp); bus.connect(rev).connect(wet).connect(comp); comp.connect(gain).connect(ctx.destination);
+    out = bus;
+  }
+
   // notes go to the context at their strike's loop time + the clock's offset: heard just as the bounce is seen
   function strike(s) {
     if (!ctx || ctx.state !== 'running') return;
@@ -440,6 +457,19 @@ ML.course = {"T":45.16,"D":[-1.985003,-24.439716,0],"R":0.035,"Z":0.2,"items":[{
     contexts: 0,
     context: () => ctx,
     strike,
+    // (the checks) one loop rendered offline as the page plays it: the loudest sample, and how many reach full scale
+    async render(rate = 44100) {
+      const live = [ctx, noise, out], items = course.items || course.objects, T = course.T;
+      ctx = new OfflineAudioContext(2, Math.ceil(rate * (T + 3)), rate); mix();
+      const play = (at, item, speed) => { const it = items[item], kind = it.kind === 'wood' ? (it.midi >= 84 ? 'plate' : 'bar') : it.kind; (voices[kind] || voices.bar)(out, at, it.note ? it.note.midi : it.midi || 72, Math.max(0.25, Math.min(1.25, speed / 2.2))); };
+      for (const s of course.strikes) play(s.t, s.item, 2);
+      for (const sg of course.segs) if (sg.kind === 'rail') play(sg.t, sg.item, 0.6);
+      const buf = await ctx.startRendering();
+      [ctx, noise, out] = live;
+      let peak = 0, full = 0;
+      for (let c = 0; c < 2; c++) for (const x of buf.getChannelData(c)) { const v = Math.abs(x); if (v > peak) peak = v; if (v >= 0.999) full++; }
+      return { peak, full, seconds: T };
+    },
     unlock() {
       if (!ctx) {
         const AC = window.AudioContext || window.webkitAudioContext;
@@ -447,16 +477,7 @@ ML.course = {"T":45.16,"D":[-1.985003,-24.439716,0],"R":0.035,"Z":0.2,"items":[{
         try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}   // iOS: sound past the silent switch
         try { ctx = new AC(); } catch { return; }
         ML.audio.contexts = 1;
-        noise = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
-        const d = noise.getChannelData(0); let s = 1;
-        for (let i = 0; i < d.length; i++) { s = (s * 16807) % 2147483647; d[i] = s / 1073741823.5 - 1; }
-        // a small room: a decaying noise impulse, mixed in a little
-        const ir = ctx.createBuffer(2, ctx.sampleRate * 1.8, ctx.sampleRate);
-        for (let c = 0; c < 2; c++) { const x = ir.getChannelData(c); for (let i = 0; i < x.length; i++) { s = (s * 16807) % 2147483647; x[i] = (s / 1073741823.5 - 1) * Math.exp(-i / ctx.sampleRate / 0.42); } }
-        const comp = ctx.createDynamicsCompressor(), gain = ctx.createGain(), rev = ctx.createConvolver(), wet = ctx.createGain(), bus = ctx.createGain();
-        rev.buffer = ir; wet.gain.value = 0.22; gain.gain.value = 0.85;
-        bus.connect(comp); bus.connect(rev).connect(wet).connect(comp); comp.connect(gain).connect(ctx.destination);
-        out = bus;
+        mix();
         ML.useAudioClock(ctx);
         ctx.addEventListener('statechange', () => { if (ctx.state !== 'running') wake(); });
         document.addEventListener('visibilitychange', wake);
