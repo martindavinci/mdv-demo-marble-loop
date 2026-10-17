@@ -123,24 +123,21 @@ ML.course = {"T":45.16,"D":[-1.985003,-24.439716,0],"R":0.035,"Z":0.2,"items":[{
 
   const perf = () => performance.now() / 1000;
   let base = perf(), ctx = null, offset = null;   // loop time: perf() - base, or (once the sound runs) heard time - offset
-  // the audio time being heard now: the output timestamp carried on by performance.now() (smooth even where the
-  // context's clock moves a buffer at a time, and late by what the device adds), else the context's clock less latency
-  const heard = () => {
-    if (ctx.getOutputTimestamp) {
-      const o = ctx.getOutputTimestamp();
-      if (o.contextTime > 0 && o.performanceTime > 0) return o.contextTime + (performance.now() - o.performanceTime) / 1000;
-    }
-    return ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0);
-  };
+  // the audio time being heard now: the context's clock less what the device adds. (Not getOutputTimestamp: on
+  // Chrome its performanceTime jumps by tens of ms from one call to the next, sometimes ahead of now.)
+  const heard = () => ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0);
   // the audio clock takes over the moment it runs, at the time the picture shows (no jump); when it stops (iOS
-  // suspends it in the background, a call interrupts it) the picture runs on, and the sound picks up from there
+  // suspends it in the background, a call interrupts it) the picture runs on, and the sound picks up from there.
+  // The picture keeps performance.now()'s pace, drawn toward the audio clock by at most 0.5 ms a call: that clock moves
+  // a buffer at a time, and followed directly it shook the motion on a 144 Hz screen; a jump of over 0.2 s (the sound
+  // held up) is taken at once
   ML.now = () => {
     if (ctx && ctx.state === 'running' && ctx.currentTime > 0) {
-      const h = heard();
-      if (offset === null) offset = h - (perf() - base);
-      const t = h - offset;
-      base = perf() - t;
-      return t;
+      const h = heard(), p = perf();
+      if (offset === null) offset = h - (p - base);
+      const err = (h - offset) - (p - base);
+      base -= Math.abs(err) > 0.2 ? err : Math.max(-0.0005, Math.min(0.0005, err * 0.05));
+      return p - base;
     }
     offset = null;
     return perf() - base;
