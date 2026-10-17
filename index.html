@@ -316,8 +316,16 @@ ML.course = {"T":4.5,"D":[0,-2.125158,0],"R":0.035,"Z":0.2,"items":[{"kind":"bar
     return out;
   }
   const L0 = 0.17;   // the keys' shared body is this long, each one stretched to its own length
-  let keys = null, bodies = null;
+  let keys = null, bodies = null, glow = null;
   const active = new Set();
+  // the key's own colour lit in it as it is struck (glow: a per-key amount of its colour, added to what it emits)
+  function glowing(mat) {
+    mat.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float glow;\nvarying float vGlow;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = glow;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vGlow;').replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vColor.rgb * vGlow;');
+    };
+    return mat;
+  }
   // a key's body: where it stands, pushed in along its face's normal by dip and turned by tremble as it is struck
   const keyMatrix = (it, d, dip = 0, tremble = 0) => new THREE.Matrix4().makeTranslation(it.pos[0] + d[0], it.pos[1] + d[1], it.pos[2])
     .multiply(new THREE.Matrix4().makeRotationZ(it.ang)).multiply(new THREE.Matrix4().makeTranslation(0, dip, 0))
@@ -360,7 +368,9 @@ ML.course = {"T":4.5,"D":[0,-2.125158,0],"R":0.035,"Z":0.2,"items":[{"kind":"bar
         });
       });
       const [W0, H0] = course.items.find((it) => it.kind === 'bar').size;
-      keys = new THREE.InstancedMesh(slab(W0, H0, L0, 0.003), new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.42, clearcoat: 0.5, clearcoatRoughness: 0.3 }), bodies.length);
+      const keyGeo = slab(W0, H0, L0, 0.003);
+      glow = new THREE.InstancedBufferAttribute(new Float32Array(bodies.length), 1); glow.setUsage(THREE.DynamicDrawUsage); keyGeo.setAttribute('glow', glow);
+      keys = new THREE.InstancedMesh(keyGeo, glowing(new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.42, clearcoat: 0.5, clearcoatRoughness: 0.3 })), bodies.length);
       bodies.forEach(({ it, d }, k) => { keys.setMatrixAt(k, keyMatrix(it, d)); keys.setColorAt(k, colorOf(it.note.midi)); });
       keys.castShadow = keys.receiveShadow = true; keys.frustumCulled = false; scene.add(keys);
       for (const m of merge(parts)) { m.frustumCulled = false; scene.add(m); }
@@ -376,19 +386,21 @@ ML.course = {"T":4.5,"D":[0,-2.125158,0],"R":0.035,"Z":0.2,"items":[{"kind":"bar
       camera.position.set(...cam.pos); camera.lookAt(...cam.look);
       ML.look.wall.position.set(cam.look[0], cam.look[1], 0);
       sun.target.position.set(cam.look[0], cam.look[1], 0); sun.position.set(cam.look[0] + 3, cam.look[1] + 0.7, 0.75); sun.target.updateMatrixWorld();
-      // a struck key gives a little under the marble and springs back, trembling
-      // (from its note's time: the same at any frame, scrubbed or played; a period on or back for its copies)
-      const BACK = 0.6;
+      // a struck key gives under the marble and springs back, trembling, and lights up in its own colour: a flash, then it
+      // stays lit for the rest of the loop (from its note's time: the same at any frame, scrubbed or played; the next
+      // loop's copies still dark, the last loop's lit)
+      const BACK = 0.6, LIT = 0.8;
       let moved = false;
       bodies.forEach(({ it, d, w }, k) => {
-        const age = u - it.note.t - w * T;
+        const age = u - it.note.t - w * T, g = age < 0 ? 0 : LIT + 1.3 * Math.exp(-4 * age);
         if (age >= 0 && age < BACK) {
           const e = Math.exp(-9 * age);
-          keys.setMatrixAt(k, keyMatrix(it, d, -0.005 * e * Math.sin(2 * Math.PI * 7 * age), 0.012 * e * Math.sin(2 * Math.PI * 13 * age)));
+          keys.setMatrixAt(k, keyMatrix(it, d, -0.009 * e * Math.sin(2 * Math.PI * 6 * age), 0.02 * e * Math.sin(2 * Math.PI * 12 * age)));
           active.add(k); moved = true;
         } else if (active.has(k)) { keys.setMatrixAt(k, keyMatrix(it, d)); active.delete(k); moved = true; }
+        if (Math.abs(glow.array[k] - g) > 1e-3) { glow.array[k] = g; moved = true; }
       });
-      if (moved) keys.instanceMatrix.needsUpdate = true;
+      if (moved) { keys.instanceMatrix.needsUpdate = true; glow.needsUpdate = true; }
       ML.look.hits.length = 0;
     },
   };
