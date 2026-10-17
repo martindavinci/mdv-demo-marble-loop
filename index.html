@@ -316,9 +316,12 @@ ML.course = {"T":4.5,"D":[0,-2.125158,0],"R":0.035,"Z":0.2,"items":[{"kind":"bar
     return out;
   }
   const L0 = 0.17;   // the keys' shared body is this long, each one stretched to its own length
-  let keys = null;
-  const keyMatrix = (it, d, tremble = 0) => new THREE.Matrix4().makeTranslation(it.pos[0] + d[0], it.pos[1] + d[1], it.pos[2])
-    .multiply(new THREE.Matrix4().makeRotationZ(it.ang)).multiply(new THREE.Matrix4().makeRotationX(tremble)).multiply(new THREE.Matrix4().makeScale(1, 1, it.size[2] / L0));
+  let keys = null, bodies = null;
+  const active = new Set();
+  // a key's body: where it stands, pushed in along its face's normal by dip and turned by tremble as it is struck
+  const keyMatrix = (it, d, dip = 0, tremble = 0) => new THREE.Matrix4().makeTranslation(it.pos[0] + d[0], it.pos[1] + d[1], it.pos[2])
+    .multiply(new THREE.Matrix4().makeRotationZ(it.ang)).multiply(new THREE.Matrix4().makeTranslation(0, dip, 0))
+    .multiply(new THREE.Matrix4().makeRotationX(tremble)).multiply(new THREE.Matrix4().makeScale(1, 1, it.size[2] / L0));
 
   ML.look = {
     hits: [],
@@ -342,7 +345,8 @@ ML.course = {"T":4.5,"D":[0,-2.125158,0],"R":0.035,"Z":0.2,"items":[{"kind":"bar
       scene.add(sun, sun.target);
       // the course, and near the seam its copy a period on or back: the keys' bodies one instanced mesh (each its colour),
       // everything else merged by material
-      const parts = new THREE.Group(), bodies = [];
+      const parts = new THREE.Group();
+      bodies = [];
       course.items.forEach((it, i) => {
         const t = it.kind === 'bar' ? it.note.t : it.t, loops = [0];
         if (t < 2) loops.push(1);
@@ -351,7 +355,7 @@ ML.course = {"T":4.5,"D":[0,-2.125158,0],"R":0.035,"Z":0.2,"items":[{"kind":"bar
           const d = D.map((c) => c * w);
           parts.add((it.kind === 'bar' ? buildKey : buildRail)(it, d));
           if (it.kind !== 'bar') return null;
-          bodies.push({ it, d });
+          bodies.push({ it, d, w });
           return { k: bodies.length - 1, d };
         });
       });
@@ -372,15 +376,20 @@ ML.course = {"T":4.5,"D":[0,-2.125158,0],"R":0.035,"Z":0.2,"items":[{"kind":"bar
       camera.position.set(...cam.pos); camera.lookAt(...cam.look);
       ML.look.wall.position.set(cam.look[0], cam.look[1], 0);
       sun.target.position.set(cam.look[0], cam.look[1], 0); sun.position.set(cam.look[0] + 3, cam.look[1] + 0.7, 0.75); sun.target.updateMatrixWorld();
-      // a struck key trembles, barely, about its knob
-      for (const h of ML.look.hits) {
-        const age = t - h.at, it = course.items[h.item];
-        if (age < 0 || age > 0.5 || !it || it.kind !== 'bar') continue;
-        const a = 0.01 * Math.exp(-10 * age) * Math.sin(2 * Math.PI * 17 * age);
-        for (const c of copies[h.item]) keys.setMatrixAt(c.k, keyMatrix(it, c.d, age < 0.45 ? a : 0));
-        keys.instanceMatrix.needsUpdate = true;
-      }
-      ML.look.hits = ML.look.hits.filter((h) => t - h.at < 0.5);
+      // a struck key gives a little under the marble and springs back, trembling
+      // (from its note's time: the same at any frame, scrubbed or played; a period on or back for its copies)
+      const BACK = 0.6;
+      let moved = false;
+      bodies.forEach(({ it, d, w }, k) => {
+        const age = u - it.note.t - w * T;
+        if (age >= 0 && age < BACK) {
+          const e = Math.exp(-9 * age);
+          keys.setMatrixAt(k, keyMatrix(it, d, -0.005 * e * Math.sin(2 * Math.PI * 7 * age), 0.012 * e * Math.sin(2 * Math.PI * 13 * age)));
+          active.add(k); moved = true;
+        } else if (active.has(k)) { keys.setMatrixAt(k, keyMatrix(it, d)); active.delete(k); moved = true; }
+      });
+      if (moved) keys.instanceMatrix.needsUpdate = true;
+      ML.look.hits.length = 0;
     },
   };
 })();
