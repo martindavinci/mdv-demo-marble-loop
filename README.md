@@ -24,9 +24,14 @@ secondo, il fotogramma più lungo e la risoluzione.
 - **Medley**: 241 note in un loop di 52 secondi, il *Rondò alla turca* di W. A. Mozart (Sonata K. 331), il *Galop
   infernal* di J. Offenbach e il finale dell'ouverture del *Guglielmo Tell* di G. Rossini.
 - Ognuno dei tre da solo, in loop.
-- ***The Entertainer*** di S. Joplin, il primo tema, in loop.
+- ***The Entertainer*** di S. Joplin, il primo tema.
+- ***Nell'antro del re della montagna*** di E. Grieg (*Peer Gynt*): il tema, che alla fine accelera.
+- ***Danza della Fata Confetto*** di P. I. Čajkovskij (*Lo schiaccianoci*): la melodia della celesta.
+- ***Per Elisa*** di L. van Beethoven: la prima parte, ripetuta come è scritta.
+- ***Onde del Danubio*** di I. Ivanovici: il primo tema del valzer, tutto su lunghe mezzelune.
 
-Un brano si apre anche dall'indirizzo: `index.html#rondo`, `#galop`, `#tell`, `#entertainer`.
+Un brano si apre anche dall'indirizzo: `index.html#rondo`, `#galop`, `#tell`, `#entertainer`, `#mountain-king`,
+`#sugar-plum`, `#fur-elise`, `#danube`.
 
 Tutto è generato nel browser: la scena con three.js, i suoni con Web Audio. Nessun file esterno.
 
