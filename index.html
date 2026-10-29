@@ -527,8 +527,11 @@ ML.course = ML.courses[0].course;
         try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}   // iOS: sound past the silent switch
         // (latencyHint 'playback': a larger buffer than the small one a game asks for. With that one the sound crackled
         // whenever another program played sound too, the owner's PC, 2026-10-29: a buffer not filled in time. The
-        // strikes are handed on far enough ahead, and the picture waits for the sound, so nothing is heard late)
-        try { ctx = new AC({ latencyHint: 'playback' }); } catch { try { ctx = new AC(); } catch { return; } }
+        // strikes are handed on far enough ahead, and the picture waits for the sound, so nothing is heard late).
+        // (sampleRate 48000, whatever the device's: at the device's own rate, 384 kHz on the owner's USB card, the render
+        // thread used 95-99.8% of each block, the room's 1.8 s response costing about 4× at each doubling of the rate,
+        // so any other sound or a little load made it miss blocks: the crackle. At 48 kHz 3%; the browser resamples)
+        try { ctx = new AC({ latencyHint: 'playback', sampleRate: 48000 }); } catch { try { ctx = new AC(); } catch { return; } }
         ML.audio.contexts = 1;
         mix();
         ML.useAudioClock(ctx);
