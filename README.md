@@ -16,22 +16,27 @@ nota; il tasto colpito cede, si accende del suo colore e resta acceso. Il loop n
 </table>
 
 **Guardalo:** apri `index.html` (anche dal telefono, anche dentro un'app di chat) e scegli la musica dal menu: la
-scelta accende il suono. Il pulsante **♪ Musica** in alto a destra riapre il menu. In alto a sinistra: fotogrammi al
-secondo, il fotogramma più lungo e la risoluzione.
+scelta accende il suono. Il pulsante **♪ Musica** in alto a destra riapre il menu; un tocco fuori dal menu (o Esc) lo
+chiude e lascia il brano che suona. Un altro brano riparte dall'inizio, con un muro tutto suo. In alto a sinistra:
+fotogrammi al secondo, il fotogramma più lungo e la risoluzione.
 
 ## Musica
 
-- **Medley**: 241 note in un loop di 52 secondi, il *Rondò alla turca* di W. A. Mozart (Sonata K. 331), il *Galop
-  infernal* di J. Offenbach e il finale dell'ouverture del *Guglielmo Tell* di G. Rossini.
-- Ognuno dei tre da solo, in loop.
-- ***The Entertainer*** di S. Joplin, il primo tema.
-- ***Nell'antro del re della montagna*** di E. Grieg (*Peer Gynt*): il tema, che alla fine accelera.
-- ***Danza della Fata Confetto*** di P. I. Čajkovskij (*Lo schiaccianoci*): la melodia della celesta.
-- ***Per Elisa*** di L. van Beethoven: la prima parte, ripetuta come è scritta.
-- ***Onde del Danubio*** di I. Ivanovici: il primo tema del valzer, tutto su lunghe mezzelune.
+Nove brani, ognuno in un loop senza fine:
 
-Un brano si apre anche dall'indirizzo: `index.html#rondo`, `#galop`, `#tell`, `#entertainer`, `#mountain-king`,
-`#sugar-plum`, `#fur-elise`, `#danube`.
+| Brano | Durata | Indirizzo |
+|---|---|---|
+| **Medley**: il *Rondò alla turca* di W. A. Mozart (Sonata K. 331), il *Galop infernal* di J. Offenbach e il finale dell'ouverture del *Guglielmo Tell* di G. Rossini, 241 note | 0:52 | `index.html` |
+| *Rondò alla turca*, da solo, come Mozart lo ha scritto | 0:24 | `#rondo` |
+| *Galop infernal*, da solo | 0:13 | `#galop` |
+| *Guglielmo Tell*, da solo | 0:15 | `#tell` |
+| *The Entertainer* di S. Joplin, il primo tema | 0:19 | `#entertainer` |
+| *Nell'antro del re della montagna* di E. Grieg (*Peer Gynt*): il tema, che alla fine accelera | 0:44 | `#mountain-king` |
+| *Danza della Fata Confetto* di P. I. Čajkovskij (*Lo schiaccianoci*): la melodia della celesta | 0:28 | `#sugar-plum` |
+| *Per Elisa* di L. van Beethoven: la prima parte, ripetuta come è scritta | 0:22 | `#fur-elise` |
+| *Onde del Danubio* di I. Ivanovici: il primo tema del valzer, tutto su lunghe mezzelune | 0:16 | `#danube` |
+
+L'indirizzo apre direttamente quel brano (per esempio `index.html#danube`). Le foto qui sopra sono del medley.
 
 Tutto è generato nel browser: la scena con three.js, i suoni con Web Audio. Nessun file esterno.
 
