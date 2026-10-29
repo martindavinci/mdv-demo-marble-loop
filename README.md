@@ -15,13 +15,18 @@ nota; il tasto colpito cede, si accende del suo colore e resta acceso. Il loop n
 </tr>
 </table>
 
-**Guardalo:** apri `index.html` (anche dal telefono, anche dentro un'app di chat). Tocca lo schermo per il suono.
-In alto a sinistra: fotogrammi al secondo, il fotogramma più lungo e la risoluzione.
+**Guardalo:** apri `index.html` (anche dal telefono, anche dentro un'app di chat) e scegli la musica dal menu: la
+scelta accende il suono. Il pulsante **♪ Musica** in alto a destra riapre il menu. In alto a sinistra: fotogrammi al
+secondo, il fotogramma più lungo e la risoluzione.
 
 ## Musica
 
-Un medley di 201 note in un loop di 45 secondi: il *Rondò alla turca* di W. A. Mozart (Sonata K. 331), il *Galop
-infernal* di J. Offenbach e il finale dell'ouverture del *Guglielmo Tell* di G. Rossini.
+- **Medley**: 241 note in un loop di 52 secondi, il *Rondò alla turca* di W. A. Mozart (Sonata K. 331), il *Galop
+  infernal* di J. Offenbach e il finale dell'ouverture del *Guglielmo Tell* di G. Rossini.
+- Ognuno dei tre da solo, in loop.
+- ***The Entertainer*** di S. Joplin, il primo tema, in loop.
+
+Un brano si apre anche dall'indirizzo: `index.html#rondo`, `#galop`, `#tell`, `#entertainer`.
 
 Tutto è generato nel browser: la scena con three.js, i suoni con Web Audio. Nessun file esterno.
 
